@@ -1,8 +1,14 @@
 from pylab import *
-from jmlog import jmlog
-import pygtk, gtk, os
+import pygtk, gtk
+
 pygtk.require('2.0')
 rcParams['font.size'] = 8
+
+# Fix local module import
+import sys, os, inspect
+sys.path.append(os.path.dirname(inspect.currentframe().f_code.co_filename))
+
+from jmlog import jmlog
 
 class PyLogAnalyser:
     def destroy(self, widget):
@@ -11,7 +17,7 @@ class PyLogAnalyser:
     def __init__(self):
         self.window = gtk.Dialog()
         self.window.connect("destroy", self.destroy)
-        self.window.set_title("PyLogAnalyser 0.8.5")
+        self.window.set_title("PyLan")
         self.window.set_border_width(5)
         self.window.set_position(gtk.WIN_POS_CENTER_ALWAYS)
         self.window.show()
@@ -49,7 +55,7 @@ class PyLogAnalyser:
         response = dialog.run()
         if response == gtk.RESPONSE_OK:      
             self.log = jmlog(dialog.get_filename())
-            self.window.set_title("PyLogAnalyser 0.8.5 - "+dialog.get_filename())
+            self.window.set_title("PyLan - "+dialog.get_filename())
             dialog.destroy()
             self.window.vbox.remove(self.table)
             if self.init:
