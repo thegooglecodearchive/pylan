@@ -1,5 +1,5 @@
 from pylab import *
-import pygtk, gtk
+import pygtk, gtk, gobject
 
 pygtk.require('2.0')
 rcParams['font.size'] = 8
@@ -10,10 +10,12 @@ sys.path.append(os.path.dirname(inspect.currentframe().f_code.co_filename))
 
 from jmlog import jmlog
 
-class PyLogAnalyser:
+from multiprocessing import Process, Queue
+
+class PyLan:    
     def destroy(self, widget):
         gtk.main_quit()
-        
+    
     def __init__(self):
         self.window = gtk.Dialog()
         self.window.connect("destroy", self.destroy)
@@ -21,7 +23,7 @@ class PyLogAnalyser:
         self.window.set_border_width(5)
         self.window.set_position(gtk.WIN_POS_CENTER_ALWAYS)
         self.window.show()
-
+        
         self.toolbar = gtk.Toolbar()
         self.toolbar.show()
         self.toolbar.append_item("Open Log", "Open Jmeter Log",None, None, self.open_log)
@@ -29,9 +31,8 @@ class PyLogAnalyser:
         self.window.vbox.pack_start(self.toolbar, True, True, 0)
 
         self.init = 1
-        self.preview(gtk.Button())
-        gtk.main()
-
+        self.preview()
+                           
     def open_log(self, widget):
         dialog = gtk.FileChooserDialog("Open JMeter Log File",
                                None,
@@ -43,6 +44,7 @@ class PyLogAnalyser:
         filter = gtk.FileFilter()
         filter.set_name("JMeter Logs")
         filter.add_pattern("*.jtl")
+        filter.add_pattern("*.xml")
         filter.add_pattern("*.csv")
         filter.add_pattern("*.log")
         dialog.add_filter(filter)
@@ -53,23 +55,55 @@ class PyLogAnalyser:
         dialog.add_filter(filter)
 
         response = dialog.run()
-        if response == gtk.RESPONSE_OK:      
-            self.log = jmlog(dialog.get_filename())
-            self.window.set_title("PyLan - "+dialog.get_filename())
-            dialog.destroy()
-            self.window.vbox.remove(self.table)
-            if self.init:
-                self.toolbar.append_item("Save Log", "Save recalculated SCV log",None, None, self.save_log)
-                self.toolbar.append_space()
-                self.toolbar.append_item("Refresh Graph", "Refresh current graph view",None, None, self.refresh)
-                self.toolbar.append_space()
-                self.toolbar.append_item("Save Image", "Save image as PNG file",None, None, self.save)
-                self.toolbar.append_space()
-                self.init = 0
-            self.preview(gtk.Button())
+        self.filename = dialog.get_filename()
         dialog.destroy()
+                
+        if response == gtk.RESPONSE_OK:   
+            # Create progress bar object
+            self.pbar = ProgressBar()
+            self.timer = gobject.timeout_add(100, self.timeout)
+            
+            # Create Queue for sync and data exchange
+            self.q = Queue()
 
-    def preview(self,widget):
+            # Process forking
+            process = Process(target=self.read_log,args=(self.filename,self.q))
+            process.start()
+           
+    def read_log(self,filename,q):
+        q.put(jmlog(filename))
+        q.close
+    
+    def timeout(self):        
+        if self.q.empty():
+            self.pbar.bar.pulse()
+            return True
+        else:
+            gobject.source_remove(self.timer)
+            self.timer = 0
+            self.pbar.progress.destroy()
+
+            self.log = self.q.get()
+            self.q.close()
+            
+            self.update()
+    
+    def update(self):
+        self.window.set_title("PyLan - " + self.filename)
+        self.window.vbox.remove(self.table)
+    
+        if self.init:
+            self.toolbar.append_item("Save Log", "Save recalculated SCV log",None, None, self.save_log)
+            self.toolbar.append_space()
+            self.toolbar.append_item("Refresh Graph", "Refresh current graph view",None, None, self.refresh)
+            self.toolbar.append_space()
+            self.toolbar.append_item("Save Image", "Save image as PNG file",None, None, self.save)
+            self.toolbar.append_space()
+        
+        self.init = 0
+        self.preview()
+            
+    def preview(self):
         self.table = gtk.Table(29, 13, True)
         self.table.show()
         self.table.set_col_spacings(10)
@@ -160,7 +194,7 @@ class PyLogAnalyser:
         self.table.attach(self.scrolled_window, 10, 13, 0, 29)
 
         if not self.init:
-            self.refresh(gtk.Button())
+            self.refresh(gtk.Button())        
 
     def refresh(self,widget):
         try:
@@ -387,7 +421,21 @@ class PyLogAnalyser:
         self.title='Active Threads'
         self.active = 'vusers'
 
+class ProgressBar:
+    def __init__(self):
+        # Create the ProgressBar
+        self.progress = gtk.Window(gtk.WINDOW_POPUP)
+        self.progress.set_position(gtk.WIN_POS_CENTER_ALWAYS)
+        self.progress.set_border_width(10)
+        self.progress.show()
+
+        self.bar = gtk.ProgressBar()
+        self.bar.show()        
+        self.progress.add(self.bar)        
+
 def main():
-    PyLogAnalyser()
+    PyLan()
+    gtk.main()    
 
 main()
+
