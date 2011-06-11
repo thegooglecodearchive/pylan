@@ -76,17 +76,24 @@ class PyLan:
     
     def timeout(self):        
         if self.q.empty():
+            # Tick for progress bar
             self.pbar.bar.pulse()
             return True
         else:
+            # Destroy timer and progress basr
             gobject.source_remove(self.timer)
             self.timer = 0
             self.pbar.progress.destroy()
 
+            # Read log or validation fault
             self.log = self.q.get()
             self.q.close()
             
-            self.update()
+            if not self.log.status == "Invalid DTD":
+                self.update()
+            else:
+                print "Shit"
+                ww = WarnWindow()
     
     def update(self):
         self.window.set_title("PyLan - " + self.filename)
@@ -433,6 +440,14 @@ class ProgressBar:
         self.bar.show()        
         self.progress.add(self.bar)        
 
+class WarnWindow:
+    def __init__(self):
+        md = gtk.MessageDialog(None, 
+            gtk.DIALOG_DESTROY_WITH_PARENT,gtk.MESSAGE_WARNING, gtk.BUTTONS_CLOSE,
+            "Invlalid file format or content")
+        md.run()
+        md.destroy()
+        
 def main():
     PyLan()
     gtk.main()    

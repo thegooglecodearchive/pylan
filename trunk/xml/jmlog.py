@@ -10,6 +10,8 @@ from datetime import datetime
 from time import time
 rcParams['font.size'] = 8
 
+dtd_file = "/home/kid/projects/pylan/source/trunk/xml/jm_dtd.xml"
+
 class jmlog:
     def __init__(self,path):
         # Data container
@@ -24,6 +26,12 @@ class jmlog:
 
         # Log parsing
         tree = etree.parse(path)
+        
+        # DTD Validation        
+        dtd = etree.DTD(dtd_file)
+        if not dtd.validate(tree):
+            self.status = "Invalid DTD"
+        
         start_time = 0        
         
         for sample in tree.findall("sample"):
@@ -76,7 +84,7 @@ class jmlog:
     
             # Append data to global array
             self.data.append(row)
-
+        
         # Obtain indexes for each column
         self.sec_index  =   self.index("secFromStart")
         self.ts_index   =   self.index("timeStamp")
@@ -108,7 +116,7 @@ class jmlog:
                     self.transactions.append(self.data[row][self.lbl_index])
                
         self.end = self.end_time
-        
+            
     def index(self,column):
         # Return numerical index for string value (key-value hash)
         for i in range(len(self.data[0])):
