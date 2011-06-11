@@ -4,7 +4,7 @@
 from numpy import arange
 from matplotlib.dates import MinuteLocator, DateFormatter
 from csv import reader, writer
-from xml.etree import ElementTree
+from lxml import etree
 from pylab import *
 from datetime import datetime
 from time import time
@@ -15,15 +15,21 @@ class jmlog:
         # Data container
         self.data=list()
         
-        # Data columns headers
-        self.data.append(("timeStamp","elapsed","Latency","bytes","label","success","allThreads","secFromStart","type"))
+        # Data header
+        self.data.append((
+            "timeStamp","elapsed","Latency","bytes",
+            "label","success",
+            "allThreads","secFromStart",
+            "type"))
 
-        # XML Log Parsing
-        tree = ElementTree.parse(path)
-        first = True
+        # Log parsing
+        tree = etree.parse(path)
+        start_time = 0        
         
         for sample in tree.findall("sample"):
-            row = list()
+            # Transcation level
+            row = list()    
+            # Append column to transaction row for each attribute
             row.append(long(sample.get("ts")))
             row.append(long(sample.get("t")))
             row.append(long(sample.get("lt")))
@@ -31,15 +37,22 @@ class jmlog:
             row.append(sample.get("lb"))
             row.append(sample.get("s"))
             row.append(int(sample.get("na")))
-            if first:
+    
+            # Set start time
+            if not start_time:
                 start_time = row[0]
-                first = False
+        
             row.append(int((row[0]-start_time)/1000))
             row.append("sample")
+    
+            # HTTP sample level
+            # Aggregative metrics
             elapsedTime=0
             latency=0
+    
             for httpSample in sample.getchildren():                
                 subRow = list()
+                # Append column to sample row for each attribute
                 subRow.append(long(httpSample.get("ts")))
                 subRow.append(long(httpSample.get("t")))
                 subRow.append(long(httpSample.get("lt")))
@@ -47,13 +60,21 @@ class jmlog:
                 subRow.append(httpSample.get("lb"))
                 subRow.append(httpSample.get("s"))
                 subRow.append(int(httpSample.get("na")))
-                subRow.append(int((subRow[0]-start_time)/1000))
+                subRow.append(int((subRow[0]-start_time)/1000))        
                 subRow.append("httpSample")
+        
+                # Append data to global array
+                self.data.append(subRow)
+        
+                # Add saple time and latentcy to current transaction
                 elapsedTime+=subRow[1]
                 latency+=subRow[2]
-                self.data.append(subRow)
+        
+            # Update transactiob time and latency
             row[1]=elapsedTime
             row[2]=latency
+    
+            # Append data to global array
             self.data.append(row)
 
         # Obtain indexes for each column
