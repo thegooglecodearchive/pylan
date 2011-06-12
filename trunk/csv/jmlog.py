@@ -11,16 +11,23 @@ rcParams['font.size'] = 8
 
 class jmlog:
     def __init__(self,path):
+        self.read(path)
+        
+    def read(self,path):
         # Open CSV log file from local disk
         log_file = open(path,"r")
+        
         # Initialize container and read data from log
         self.data=list()
         self.data.extend(reader(log_file))
+        
         # Close CSV log file
         log_file.close()
 
         # Appen additional column to data array - Seconds from start
         self.data[0].append("secFromStart")
+        self.data[0].append("type")
+        
         # Obtain indexes for each column
         self.sec_index  =   self.index("secFromStart")
         self.ts_index   =   self.index("timeStamp")
@@ -30,19 +37,26 @@ class jmlog:
         self.lbl_index  =   self.index("label")
         self.err_index  =   self.index("success")
         self.vu_index   =   self.index("allThreads")
+        self.type_index =   self.index("type")
+
+        # Sample labels
+        self.labels = list()
 
         # Transaction labels
-        self.labels = list()
+        self.transactions = list()
 
         # Time Variables: fixed and view frame values
         start_time = long(self.data[1][self.ts_index])
         self.start_time = 0
         self.start = 0
         self.end_time = 0
+        
         for row in range(1,len(self.data)):
             # Calculate additional column value - Seconds from start
             current_time = long(self.data[row][self.ts_index])
             self.data[row].append(int((current_time-start_time)/1000))
+            # Add data type (allways httpsample)
+            #self.data[row].append("httpSample")
             # Transform string values to integer type
             self.data[row][self.et_index]=int(self.data[row][self.et_index])
             self.data[row][self.lt_index]=int(self.data[row][self.lt_index])

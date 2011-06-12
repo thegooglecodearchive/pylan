@@ -14,6 +14,9 @@ dtd_file = "/home/kid/projects/pylan/source/trunk/xml/jm_dtd.xml"
 
 class jmlog:
     def __init__(self,path):
+        self.read(path)
+        
+    def read(self,path):
         # Data container
         self.data=list()
         
@@ -34,6 +37,7 @@ class jmlog:
         else:
             self.status = "Valid"
         
+        # Temp var
         start_time = 0        
         
         for sample in tree.findall("sample"):
@@ -98,15 +102,17 @@ class jmlog:
         self.vu_index   =   self.index("allThreads")
         self.type_index =   self.index("type")
 
-        # Transaction labels
+        # Sample labels
         self.labels = list()
 
-        # Transactios
+        # Transaction labels
         self.transactions = list()
-
+        
+        # Time Variables: fixed and view frame values
         self.start_time = 0
         self.start = 0
         self.end_time = 0
+        
         for row in range(1,len(self.data)):
             if self.end_time < self.data[row][self.sec_index]:
                 self.end_time = self.data[row][self.sec_index]
