@@ -89,11 +89,10 @@ class PyLan:
             self.log = self.q.get()
             self.q.close()
             
-            if not self.log.status == "Invalid DTD":
+            if self.log.status == "Valid":
                 self.update()
             else:
-                print "Shit"
-                ww = WarnWindow()
+                ww = WarnWindow(self.log.status)
     
     def update(self):
         self.window.set_title("PyLan - " + self.filename)
@@ -441,10 +440,10 @@ class ProgressBar:
         self.progress.add(self.bar)        
 
 class WarnWindow:
-    def __init__(self):
+    def __init__(self, status):
         md = gtk.MessageDialog(None, 
             gtk.DIALOG_DESTROY_WITH_PARENT,gtk.MESSAGE_WARNING, gtk.BUTTONS_CLOSE,
-            "Invlalid file format or content")
+            status)
         md.run()
         md.destroy()
         
@@ -453,4 +452,3 @@ def main():
     gtk.main()    
 
 main()
-

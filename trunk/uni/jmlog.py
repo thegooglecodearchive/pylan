@@ -14,17 +14,28 @@ dtd_file = "/home/kid/projects/pylan/source/trunk/xml/jm_dtd.xml"
 
 class jmlog:
     def __init__(self,path):
+        # Read firts log line for further validation        
         log_file = open(path,"r")
-
         first_line = log_file.readline()
-        
         log_file.close()
         
         if first_line == '<?xml version="1.0" encoding="UTF-8"?>\n':
-            self.read_xml(path)
+            if self.validate_xml(path): self.read_xml()
+            else: return None
         else:
-            self.status = "Valid"
-            self.read_csv(path)
+            if self.validate_csv(first_line): self.read_csv(path)
+            else: return None
+            
+    def validate_csv(self,line):
+        header = (
+            "timeStamp","elapsed","label","success","bytes","Latency")
+    
+        for label in header:
+            if not line.count(label):
+                self.status = "Invalid CSV header"
+                return False
+        self.status = "Valid"
+        return True
     
     def read_csv(self,path):
         # Open CSV log file from local disk
@@ -39,7 +50,6 @@ class jmlog:
 
         # Appen additional column to data array - Seconds from start
         self.data[0].append("secFromStart")
-        self.data[0].append("type")
         
         # Obtain indexes for each column
         self.sec_index  =   self.index("secFromStart")
@@ -50,8 +60,7 @@ class jmlog:
         self.lbl_index  =   self.index("label")
         self.err_index  =   self.index("success")
         self.vu_index   =   self.index("allThreads")
-        self.type_index =   self.index("type")
-
+        
         # Sample labels
         self.labels = list()
 
@@ -68,8 +77,6 @@ class jmlog:
             # Calculate additional column value - Seconds from start
             current_time = long(self.data[row][self.ts_index])
             self.data[row].append(int((current_time-start_time)/1000))
-            # Add data type (allways httpsample)
-            #self.data[row].append("httpSample")
             # Transform string values to integer type
             self.data[row][self.et_index]=int(self.data[row][self.et_index])
             self.data[row][self.lt_index]=int(self.data[row][self.lt_index])
@@ -86,7 +93,20 @@ class jmlog:
                 self.labels.append(self.data[row][self.lbl_index])
         self.end = self.end_time    
         
-    def read_xml(self,path):
+    def validate_xml(self,path):  
+        # Log parsing
+        self.tree = etree.parse(path)
+        
+        # DTD Validation
+        dtd = etree.DTD(dtd_file)
+        if dtd.validate(self.tree):
+            self.status = "Valid"
+            return True
+        else:
+            self.status = "XML validation failed (DTD)"
+            return False
+    
+    def read_xml(self):
         # Data container
         self.data=list()
         
@@ -95,22 +115,12 @@ class jmlog:
             "timeStamp","elapsed","Latency","bytes",
             "label","success",
             "allThreads","secFromStart",
-            "type"))
-
-        # Log parsing
-        tree = etree.parse(path)
-        
-        # DTD Validation        
-        dtd = etree.DTD(dtd_file)
-        if not dtd.validate(tree):
-            self.status = "Invalid DTD"
-        else:
-            self.status = "Valid"
+            "type"))       
         
         # Temp var
         start_time = 0        
         
-        for sample in tree.findall("sample"):
+        for sample in self.tree.findall("sample"):
             # Transcation level
             row = list()    
             # Append column to transaction row for each attribute
