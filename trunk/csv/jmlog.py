@@ -1,6 +1,6 @@
-####################################################################################################
-#    JMeter CSV Log Class                                                                          #
-####################################################################################################
+"""
+    JMeter CSV Log Class
+"""
 
 from numpy import arange
 from matplotlib.dates import MinuteLocator, DateFormatter

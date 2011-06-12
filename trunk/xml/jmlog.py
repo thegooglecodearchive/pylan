@@ -1,15 +1,15 @@
 """
     JMeter XML Log Class
 """
+
 from numpy import arange
 from matplotlib.dates import MinuteLocator, DateFormatter
 from csv import reader, writer
-from lxml import etree
 from pylab import *
 from datetime import datetime
-from time import time
 rcParams['font.size'] = 8
 
+from lxml import etree
 dtd_file = "/home/kid/projects/pylan/source/trunk/xml/jm_dtd.xml"
 
 class jmlog:
@@ -31,6 +31,8 @@ class jmlog:
         dtd = etree.DTD(dtd_file)
         if not dtd.validate(tree):
             self.status = "Invalid DTD"
+        else:
+            self.status = "Valid"
         
         start_time = 0        
         
