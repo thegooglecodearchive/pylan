@@ -95,7 +95,7 @@ class jmlog:
             # Transform string values to integer type
             self.data[row][self.et_index]=int(self.data[row][self.et_index])
             self.data[row][self.lt_index]=int(self.data[row][self.lt_index])
-            self.data[row][self.b_index]=int(self.data[row][self.b_index])
+            self.data[row][self.b_index]=int(self.data[row][self.b_index])/1024
             try:
                 self.data[row][self.vu_index]=int(self.data[row][self.vu_index])
             except:
@@ -142,7 +142,7 @@ class jmlog:
             row.append(long(sample.get("ts")))
             row.append(long(sample.get("t")))
             row.append(long(sample.get("lt")))
-            row.append(long(sample.get("by")))
+            row.append(long(sample.get("by"))/1024)
             row.append(sample.get("lb"))
             row.append(sample.get("s"))
             row.append(int(sample.get("na")))
@@ -666,7 +666,7 @@ class PyLan:
         dialog.destroy()
 
     def radio_buttons(self):
-        self.title='Throughput (B/s)'
+        self.title='Throughput (kB/s)'
         self.active = 'bpt'
         shift = 22
         
@@ -786,7 +786,7 @@ class PyLan:
         self.points_status = not self.points_status
 
     def preview_bpt(self, widget):
-        self.title='Throughput (B/s)'
+        self.title='Throughput (kB/s)'
         self.active = 'bpt'
 
     def preview_art(self, widget):
