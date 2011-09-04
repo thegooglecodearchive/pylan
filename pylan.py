@@ -26,24 +26,24 @@ rcParams['font.size'] = 8
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
     JMeter Unified Log Class
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
 class jmlog:
     def __init__(self,path):
-        # Read firts log line for further validation        
+        # Read first log line for further validation        
         log_file = open(path,"r")
         first_line = log_file.readline()
         log_file.close()
         
+        # Determine file format and perform basic check
         if first_line == '<?xml version="1.0" encoding="UTF-8"?>\n':
             if self.validate_xml(path): self.read_xml()
             else: return None
         else:
             if self.validate_csv(first_line): self.read_csv(path)
             else: return None
-            
+    
     def validate_csv(self,line):
-        header = (
-            "timeStamp","elapsed","label","success","bytes","Latency")
+        # Validate CSV file header
+        header = ("timeStamp","elapsed","label","success","bytes","Latency")
     
         for label in header:
             if not line.count(label):
@@ -307,15 +307,20 @@ class jmlog:
             ma.append(array[i])
         return ma
 
-    def save(self,path):
-        # Remove outliers using moving median algorithm
+    def export2csv(self,path):
+        
         log_file = open(path,"wb")
         output = writer(log_file)        
         for row in range(len(self.data)):
-            current_cow=(self.data[row][self.ts_index],self.data[row][self.et_index],
-                self.data[row][self.lbl_index],self.data[row][self.err_index],
-                self.data[row][self.b_index],self.data[row][self.lt_index])            
-            output.writerow(current_cow)
+            current_row=(
+                self.data[row][self.ts_index],
+                self.data[row][self.et_index],
+                self.data[row][self.lbl_index],
+                self.data[row][self.err_index],
+                self.data[row][self.b_index],
+                self.data[row][self.lt_index]
+            )
+            output.writerow(current_row)
         log_file.close()
    
     def plot(self, graph = 'bpt_total',time_int = 30, label = None, l_opt = False,ttl=None,trend = False, pnts=False):
@@ -459,7 +464,7 @@ class PyLan:
         self.window.vbox.remove(self.table)
     
         if self.init:
-            self.toolbar.append_item("Save Log", "Save recalculated SCV log",None, None, self.save_log)
+            self.toolbar.append_item("Save Log", "Save recalculated log in CSV format",None, None, self.save_log)
             self.toolbar.append_space()
             self.toolbar.append_item("Refresh Graph", "Refresh current graph view",None, None, self.refresh)
             self.toolbar.append_space()
@@ -636,7 +641,7 @@ class PyLan:
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
             filename = dialog.get_filename()
-            self.log.save(filename)
+            self.log.export2csv(filename)
         dialog.destroy()
 
     def radio_buttons(self):
@@ -659,7 +664,7 @@ class PyLan:
         button.show()
         self.table.attach(button, 5, 7, shift, shift+1)
         
-        button = gtk.RadioButton(button,'Hits per second')
+        button = gtk.RadioButton(button,'Responses per Second')
         button.connect("toggled", self.preview_rpt)
         button.show()
         self.table.attach(button, 7, 9, shift, shift+1)
@@ -772,7 +777,7 @@ class PyLan:
         self.active = 'lat'
 
     def preview_rpt(self, widget):
-        self.title='Hits per second'
+        self.title='Responses per Second'
         self.active = 'rpt'
 
     def preview_err(self, widget):
