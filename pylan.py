@@ -445,41 +445,15 @@ class PyLan:
         dialog.destroy()
                 
         if response == gtk.RESPONSE_OK:   
-            # Create progress bar object
-            self.pbar = ProgressBar()
-            self.timer = gobject.timeout_add(100, self.timeout)
+            # Reads log
+            self.log = jmlog(self.filename)
             
-            # Create Queue for sync and data exchange
-            self.q = Queue()
-
-            # Process forking
-            process = Process(target=self.read_log,args=(self.filename,self.q))
-            process.start()
-           
-    def read_log(self,filename,q):
-        q.put(jmlog(filename))
-        q.close
-    
-    def timeout(self):        
-        if self.q.empty():
-            # Tick for progress bar
-            self.pbar.bar.pulse()
-            return True
-        else:
-            # Destroy timer and progress basr
-            gobject.source_remove(self.timer)
-            self.timer = 0
-            self.pbar.progress.destroy()
-
-            # Read log or validation fault
-            self.log = self.q.get()
-            self.q.close()
-            
+            # Import validation
             if self.log.status == "Valid":
                 self.update()
             else:
                 ww = WarnWindow(self.log.status)
-    
+
     def update(self):
         self.window.set_title("PyLan - " + self.filename)
         self.window.vbox.remove(self.table)
