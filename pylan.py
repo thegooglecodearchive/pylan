@@ -1,6 +1,7 @@
 from pylab import *
 import pygtk, gtk, gobject
 pygtk.require('2.0')
+rcParams['font.size'] = 8
 
 from numpy import arange
 from matplotlib.dates import MinuteLocator, DateFormatter
@@ -10,18 +11,6 @@ from lxml import etree
 
 from datetime import datetime
 import os
-
-from multiprocessing import Process, Queue
-
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    Settings
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-
-# XML Schema DTD file
-dtd_file = os.getcwd() + "/jm_dtd.xml"
-
-# UI
-rcParams['font.size'] = 8
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
     JMeter Unified Log Class
@@ -108,19 +97,57 @@ class jmlog:
                 self.labels.append(self.data[row][self.lbl_index])
         self.end = self.end_time    
         
-    def validate_xml(self,path):  
-        # Log parsing
-        self.tree = etree.parse(path)
+    def validate_xml(self,path):
+        # Parse log file
+        try:
+            self.tree = etree.parse(path)
+        except etree.XMLSyntaxError as e:
+            self.status = str(e)
+            return False
+        
+        # Prepare DTD file
+        schema = '''<!ELEMENT testResults (sample)*>
+            <!ATTLIST testResults version	CDATA	#FIXED "1.2">            
+            <!ELEMENT sample (httpSample)*>
+            <!ATTLIST sample
+                t	CDATA	#REQUIRED
+                lt	CDATA	#REQUIRED
+                ts	CDATA	#REQUIRED
+                s	CDATA	#REQUIRED
+                lb	CDATA	#REQUIRED
+                by	CDATA	#REQUIRED
+                ng	CDATA	#REQUIRED
+                na	CDATA	#REQUIRED
+            >            
+            <!ELEMENT httpSample EMPTY>
+            <!ATTLIST httpSample
+                t	CDATA	#REQUIRED
+                lt	CDATA	#REQUIRED
+                ts	CDATA	#REQUIRED
+                s	CDATA	#REQUIRED
+                lb	CDATA	#REQUIRED
+                by	CDATA	#REQUIRED
+                ng	CDATA	#REQUIRED
+                na	CDATA	#REQUIRED
+            >
+        '''
+        
+        dtd_filename = os.getcwd() + '/temp_dtd.xml'
+        dtd_file = open(dtd_filename,'w')
+        dtd_file.write(schema)
+        dtd_file.close()
+        
+        dtd = etree.DTD(dtd_filename)
+        os.remove(dtd_filename)
         
         # DTD Validation
-        dtd = etree.DTD(dtd_file)
         if dtd.validate(self.tree):
             self.status = "Valid"
             return True
         else:
             self.status = "XML validation failed (DTD)"
             return False
-    
+
     def read_xml(self):
         # Data container
         self.data=list()
@@ -408,6 +435,7 @@ class PyLan:
         gtk.main_quit()
     
     def __init__(self):
+        # Main window
         self.window = gtk.Dialog()
         self.window.connect("destroy", self.destroy)
         self.window.set_title("PyLan")
@@ -415,16 +443,58 @@ class PyLan:
         self.window.set_position(gtk.WIN_POS_CENTER_ALWAYS)
         self.window.show()
         
-        self.toolbar = gtk.Toolbar()
-        self.toolbar.show()
-        self.toolbar.append_item("Open Log", "Open Jmeter Log",None, None, self.open_log)
-        self.toolbar.append_space()        
-        self.window.vbox.pack_start(self.toolbar, True, True, 0)
-
-        self.init = 1
+        # Menubar
+        self.menubar = self.get_main_menu(self.window)
+        self.window.vbox.pack_start(self.menubar, True, True, 0)
+        self.menubar.show()
+        
+        # Init options
+        self.init   = 1
+        self.title  = 'Average Response Time (ms)'
+        self.active = 'art'
         self.preview()
-                           
-    def open_log(self, widget):
+        
+    def get_main_menu(self, window):
+        # Menu Items
+        self.menu_items = (
+            ( "/_File",                         None,   None,                   0,  "<Branch>" ),
+            ( "/File/_Open",                    None,   self.open_log,          0,  None ),
+            ( "/File/_Save Chart",              None,   self.save_chart,        0,  None ),
+            ( "/File/Save Log",                 None,   self.save_log,          0,  None ),
+            ( "/File/sep1",                     None,   None,                   0,  "<Separator>" ),
+            ( "/File/Quit",                     None,   gtk.main_quit,          0,  None ),
+            ( "/_Chart",                        None,   None,                   0,  "<Branch>" ),
+            ( "/Chart/Reponse Time",            None,   self.chart_selector,    0,  "<RadioItem>" ),
+            ( "/Chart/Latency",                 None,   self.chart_selector,    1,  "/Chart/Reponse Time" ),
+            ( "/Chart/Responses per Second",    None,   self.chart_selector,    2,  "/Chart/Reponse Time" ),
+            ( "/Chart/Throughput",              None,   self.chart_selector,    3,  "/Chart/Reponse Time" ),
+            ( "/Chart/Error Rate",              None,   self.chart_selector,    4,  "/Chart/Reponse Time" ),
+            ( "/Chart/Error Count",             None,   self.chart_selector,    5,  "/Chart/Reponse Time" ),
+            ( "/Chart/Active Threads",          None,   self.chart_selector,    6,  "/Chart/Reponse Time" ),
+            ( "/_Options",                      None,   None,                   0,  "<Branch>" ),
+            ( "/Options/Show Legend",           None,   self.option_selector,   0,  "<CheckItem>" ),
+            ( "/Options/Show Trends",           None,   self.option_selector,   1,  "<CheckItem>" ),
+            ( "/Options/Show Points",           None,   self.option_selector,   2,  "<CheckItem>" ),
+        )
+        
+        accel_group = gtk.AccelGroup()
+
+        # This function initializes the item factory.
+        item_factory = gtk.ItemFactory(gtk.MenuBar, "<main>", accel_group)
+
+        # This method generates the menu items. Pass to the item factory
+        #  the list of menu items
+        item_factory.create_items(self.menu_items)
+
+        # Attach the new accelerator group to the window.
+        window.add_accel_group(accel_group)
+
+        # need to keep a reference to item_factory to prevent its destruction
+        self.item_factory = item_factory
+        # Finally, return the actual menu bar created by the item factory.
+        return item_factory.get_widget("<main>")
+    
+    def open_log(self,stub1,stub2):
         dialog = gtk.FileChooserDialog("Open JMeter Log File",
                                None,
                                gtk.FILE_CHOOSER_ACTION_OPEN,
@@ -455,234 +525,187 @@ class PyLan:
             
             # Import validation
             if self.log.status == "Valid":
-                self.update()
+                self.window.set_title("PyLan - " + self.filename)
+                self.window.vbox.remove(self.table)
+    
+                self.init = 0
+                self.preview()
             else:
                 ww = WarnWindow(self.log.status)
 
-    def update(self):
-        self.window.set_title("PyLan - " + self.filename)
-        self.window.vbox.remove(self.table)
-    
-        if self.init:
-            self.toolbar.append_item("Save Log", "Save recalculated log in CSV format",None, None, self.save_log)
-            self.toolbar.append_space()
-            self.toolbar.append_item("Refresh Graph", "Refresh current graph view",None, None, self.refresh)
-            self.toolbar.append_space()
-            self.toolbar.append_item("Save Image", "Save image as PNG file",None, None, self.save)
-            self.toolbar.append_space()
-        
-        self.init = 0
-        self.preview()
-            
     def preview(self):
-        self.table = gtk.Table(29, 13, True)
+        # Height basis
+        shift = 24
+
+        # Main canvas
+        self.table = gtk.Table(shift+2, 13, True)
         self.table.show()
         self.table.set_col_spacings(10)
         self.table.set_row_spacings(0)
         self.window.vbox.pack_start(self.table, True, True, 0)
-
-        shift = 22
-        self.radio_buttons()
-        shift += 2
         
-        label = gtk.Label("Granularity (Seconds):")
+        # Granularity (Seconds)
+        label = gtk.Label("Granularity (seconds):")
         label.show()
         self.table.attach(label, 0, 2, 0+shift, 1+shift)
-        label = gtk.Label("Granularity (Minutes):")
-        label.show()
-        self.table.attach(label, 0, 2, 1+shift, 2+shift)
-
-        self.sec = self.time_scale(60)
-        self.table.attach(self.sec, 2, 10, 0+shift, 1+shift)
-        self.min = self.time_scale(21)
-        self.min.set_value(1)
-        self.table.attach(self.min, 2, 10, 1+shift, 2+shift)
         
+        self.sec = self.time_scale(60)
+        self.table.attach(self.sec, 2, 5, 0+shift, 1+shift)
+        
+        # Granularity (Minutes)
+        label = gtk.Label("Granularity (minutes):")
+        label.show()
+        self.table.attach(label, 5, 7, 0+shift, 1+shift)
+        
+        self.min = self.time_scale(21)
+        self.table.attach(self.min, 7, 10, 0+shift, 1+shift)
+        self.min.set_value(1)
+        
+        # Start time
         label = gtk.Label()
         label.set_markup("<b>Start Time:</b>");
         label.show()
-        self.table.attach(label, 0, 1, 2+shift, 3+shift)
+        self.table.attach(label, 0, 1, 1+shift, 2+shift)
         label = gtk.Label("Hours:")
         label.show()
-        self.table.attach(label, 1, 2, 2+shift, 3+shift)
+        self.table.attach(label, 1, 2, 1+shift, 2+shift)
         label = gtk.Label("Minutes:")
         label.show()
-        self.table.attach(label, 3, 4, 3+shift-1, 4+shift-1)
+        self.table.attach(label, 3, 4, 1+shift, 2+shift)
 
         self.spinner_sh = gtk.SpinButton(gtk.Adjustment(0.0, 0.0, 23.0, 1.0, 4.0, 0.0), 0, 0)
         self.spinner_sh.show()
-        self.table.attach(self.spinner_sh, 2, 3, 2+shift, 3+shift)
+        self.table.attach(self.spinner_sh, 2, 3, 1+shift, 2+shift)
 
         self.spinner_sm = gtk.SpinButton(gtk.Adjustment(0.0, 0.0, 59.0, 1.0, 10.0, 0.0), 0, 0)
         self.spinner_sm.show()
-        self.table.attach(self.spinner_sm, 4, 5, 2+shift, 3+shift)
+        self.table.attach(self.spinner_sm, 4, 5, 1+shift, 2+shift)
 
+        # End time
         label = gtk.Label()
         label.set_markup("<b>End Time:</b>");
         label.show()
-        self.table.attach(label, 5, 6, 2+shift, 3+shift)
+        self.table.attach(label, 5, 6, 1+shift, 2+shift)
         label = gtk.Label("Hours:")
         label.show()
-        self.table.attach(label, 6, 7, 2+shift, 3+shift)
+        self.table.attach(label, 6, 7, 1+shift, 2+shift)
         label = gtk.Label("Minutes:")
         label.show()
-        self.table.attach(label, 8, 9, 2+shift, 3+shift)
+        self.table.attach(label, 8, 9, 1+shift, 2+shift)
 
         if not self.init:
             self.spinner_eh = gtk.SpinButton(gtk.Adjustment(int(self.log.end_time/3600), 0.0, 23.0, 1.0, 4.0, 0.0), 0, 0)
         else:
             self.spinner_eh = gtk.SpinButton(gtk.Adjustment(0.0, 0.0, 23.0, 1.0, 4.0, 0.0), 0, 0)
         self.spinner_eh.show()
-        self.table.attach(self.spinner_eh, 7, 8, 2+shift, 3+shift)
+        self.table.attach(self.spinner_eh, 7, 8, 1+shift, 2+shift)
 
         if not self.init:
             self.spinner_em = gtk.SpinButton(gtk.Adjustment(int((self.log.end_time-int(self.log.end_time/3600)*3600)/60), 0.0, 59.0, 1.0, 5.0, 0.0), 0, 0)
         else:                                             
             self.spinner_em = gtk.SpinButton(gtk.Adjustment(0, 0.0, 59.0, 1.0, 5.0, 0.0), 0, 0)                                    
         self.spinner_em.show()
-        self.table.attach(self.spinner_em, 9, 10, 2+shift, 3+shift)
-
-        separator = gtk.HSeparator()
-        separator.show()
-        self.table.attach(separator, 0, 10, 3+shift, 4+shift)
-
-        button = gtk.CheckButton("Show Legend")
-        button.connect("clicked", self.legend_opt)
-        button.show()
-        self.table.attach(button, 2, 4, 4+shift, 5+shift)
-
-        button = gtk.CheckButton("Show Points")
-        button.connect("clicked", self.points_opt)
-        button.show()
-        self.table.attach(button, 4, 6, 4+shift, 5+shift)
-
-        button = gtk.CheckButton("Show Trend")
-        button.connect("clicked", self.trend_opt)
-        button.show()
-        self.table.attach(button, 6, 8, 4+shift, 5+shift)
-
+        self.table.attach(self.spinner_em, 9, 10, 1+shift, 2+shift)
+    
+        # List of Labels
         self.scrolled_window = self.label_win()
-        self.table.attach(self.scrolled_window, 10, 13, 0, 29)
+        self.table.attach(self.scrolled_window, 10, 13, 0, shift+2)
 
+        # Refresh chart
         if not self.init:
-            self.refresh(gtk.Button())        
+            self.refresh(None,None)
 
-    def refresh(self,widget):
-        try:
-            time_int = int(self.sec.get_value()+60*self.min.get_value())
-        except:
-            time_int = 60
-
-        end_point = self.spinner_em.get_value()*60 + self.spinner_eh.get_value()*3600
-        start_point = self.spinner_sm.get_value()*60 + self.spinner_sh.get_value()*3600
-        if end_point < self.log.end_time:
-            self.log.end = max(300,int(end_point))
-        else:
-            self.log.end = self.log.end_time
-        if start_point < self.log.end:
-            self.log.start = int(start_point)
-        else:
-            self.log.start = max(0,int(self.log.end)-300)
-
-        if time_int:
-            clf()
-            if self.active == 'vusers':
-                self.log.plot(self.active, time_int, None, False,self.title,False,False)
-            else:
-                for label in self.label_list:
-                    self.log.plot(self.active, time_int, label, self.legend_status,self.title,self.trend_status,self.points_status)
-                if self.total_status and self.active != 'art' and self.active != 'lat':
-                    self.log.plot(self.active+'_total', time_int, None, self.legend_status, self.title,self.trend_status,self.points_status)
-            savefig("preview.png",dpi=96, transparent=False,format="png")
+    def refresh(self,stub1,stub2):
+        # Refresh current chart
+        if not self.init:
             try:
-                self.table.remove(self.image)
+                time_int = int(self.sec.get_value()+60*self.min.get_value())
             except:
-                None
+                time_int = 60
             
-            self.image = gtk.Image()
-            self.image.set_from_file("preview.png")
-            self.image.show()
-            self.table.attach(self.image, 0, 10, 0, 22)
-            os.remove("preview.png")
-
-    def save(self,widget):
-        dialog = gtk.FileChooserDialog("Save...",
-                                None,
-                               gtk.FILE_CHOOSER_ACTION_SAVE,
-                               (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                gtk.STOCK_SAVE, gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        filter = gtk.FileFilter()
-        filter.set_name("PNG Images")
-        filter.add_pattern("*.png")
-        dialog.add_filter(filter)
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            if dialog.get_filename()[-4:] != '.png':
-                filename = dialog.get_filename()+'.png'
+            end_point = self.spinner_em.get_value()*60 + self.spinner_eh.get_value()*3600
+            start_point = self.spinner_sm.get_value()*60 + self.spinner_sh.get_value()*3600
+            if end_point < self.log.end_time:
+                self.log.end = max(300,int(end_point))
             else:
+                self.log.end = self.log.end_time
+            if start_point < self.log.end:
+                self.log.start = int(start_point)
+            else:
+                self.log.start = max(0,int(self.log.end)-300)
+            
+            if time_int:
+                clf()
+                if self.active == 'vusers':
+                    self.log.plot(self.active, time_int, None, False,self.title,False,False)
+                else:
+                    for label in self.label_list:
+                        self.log.plot(self.active, time_int, label, self.legend_status,self.title,self.trend_status,self.points_status)
+                    if self.total_status and self.active != 'art' and self.active != 'lat':
+                        self.log.plot(self.active+'_total', time_int, None, self.legend_status, self.title,self.trend_status,self.points_status)
+                savefig("preview.png",dpi=96, transparent=False,format="png")
+                
+                try:
+                    self.table.remove(self.button)
+                except:
+                    None
+                
+                # Image object
+                self.image = gtk.Image()
+                self.image.set_from_file("preview.png")
+                self.image.show()
+                os.remove("preview.png")
+                
+                # Button container
+                self.button = gtk.Button()
+                self.button.add(self.image)
+                self.button.show()
+                self.button.connect("clicked", self.refresh, "1")
+                
+                self.table.attach(self.button, 0, 10, 0, 24)
+                
+    def save_chart(self,stub1,stub2):
+        # Save chart to PNG file
+        if not self.init:
+            dialog = gtk.FileChooserDialog("Save...",
+                                    None,
+                                   gtk.FILE_CHOOSER_ACTION_SAVE,
+                                   (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_SAVE, gtk.RESPONSE_OK))
+            dialog.set_default_response(gtk.RESPONSE_OK)
+            filter = gtk.FileFilter()
+            filter.set_name("PNG Images")
+            filter.add_pattern("*.png")
+            dialog.add_filter(filter)
+            response = dialog.run()
+            if response == gtk.RESPONSE_OK:
+                if dialog.get_filename()[-4:] != '.png':
+                    filename = dialog.get_filename()+'.png'
+                else:
+                    filename = dialog.get_filename()
+                savefig(filename,dpi=96, transparent=False,format="png")
+            dialog.destroy()
+
+    def save_log(self,stub1,stub2):
+        # Save log in CSV format
+        if not self.init:
+            dialog = gtk.FileChooserDialog("Save...",
+                                    None,
+                                   gtk.FILE_CHOOSER_ACTION_SAVE,
+                                   (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_SAVE, gtk.RESPONSE_OK))
+            dialog.set_default_response(gtk.RESPONSE_OK)
+            filter = gtk.FileFilter()
+            filter.set_name("JMeter Logs")
+            filter.add_pattern("*.jtl")
+            filter.add_pattern("*.csv")
+            filter.add_pattern("*.log")
+            dialog.add_filter(filter)
+            response = dialog.run()
+            if response == gtk.RESPONSE_OK:
                 filename = dialog.get_filename()
-            savefig(filename,dpi=96, transparent=False,format="png")
-        dialog.destroy()
-
-    def save_log(self,widget):
-        dialog = gtk.FileChooserDialog("Save...",
-                                None,
-                               gtk.FILE_CHOOSER_ACTION_SAVE,
-                               (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                                gtk.STOCK_SAVE, gtk.RESPONSE_OK))
-        dialog.set_default_response(gtk.RESPONSE_OK)
-        filter = gtk.FileFilter()
-        filter.set_name("JMeter Logs")
-        filter.add_pattern("*.jtl")
-        filter.add_pattern("*.csv")
-        filter.add_pattern("*.log")
-        dialog.add_filter(filter)
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            filename = dialog.get_filename()
-            self.log.export2csv(filename)
-        dialog.destroy()
-
-    def radio_buttons(self):
-        self.title='Throughput (kB/s)'
-        self.active = 'bpt'
-        shift = 22
-        
-        button = gtk.RadioButton(None, 'Throughput')
-        button.connect("toggled", self.preview_bpt)
-        button.show()
-        self.table.attach(button, 1, 3, shift, shift+1)
-
-        button = gtk.RadioButton(button,'Response Time')
-        button.connect("toggled", self.preview_art)
-        button.show()
-        self.table.attach(button, 3, 5, shift, shift+1)
-
-        button = gtk.RadioButton(button,'Latency')
-        button.connect("toggled", self.preview_lat)
-        button.show()
-        self.table.attach(button, 5, 7, shift, shift+1)
-        
-        button = gtk.RadioButton(button,'Responses per Second')
-        button.connect("toggled", self.preview_rpt)
-        button.show()
-        self.table.attach(button, 7, 9, shift, shift+1)
-
-        button = gtk.RadioButton(button,'Error Rate')
-        button.connect("toggled", self.preview_err)
-        button.show()
-        self.table.attach(button, 2, 4, shift+1, shift+2)
-
-        button = gtk.RadioButton(button,'Error Count')
-        button.connect("toggled", self.preview_errc)
-        button.show()
-        self.table.attach(button, 4, 6, shift+1, shift+2)
-
-        button = gtk.RadioButton(button,'Active Threads')
-        button.connect("toggled", self.preview_vu)
-        button.show()
-        self.table.attach(button, 6, 8, shift+1, shift+2)
+                self.log.export2csv(filename)
+            dialog.destroy()
 
     def label_win(self):
         self.label_list = list()
@@ -751,46 +774,50 @@ class PyLan:
             self.label_list.append(label)
         else:
             self.label_list.remove(label)
-
+    
     def total(self,widget):
         self.total_status = not self.total_status
 
-    def legend_opt(self,widget):
-        self.legend_status = not self.legend_status
-
-    def trend_opt(self,widget):
-        self.trend_status = not self.trend_status
-
-    def points_opt(self,widget):
-        self.points_status = not self.points_status
-
-    def preview_bpt(self, widget):
-        self.title='Throughput (kB/s)'
-        self.active = 'bpt'
-
-    def preview_art(self, widget):
-        self.title='Average Response Time (ms)'
-        self.active = 'art'
+    def option_selector(self,option,stub):
+        # Update settings
+        if option == 0:
+            self.legend_status = not self.legend_status
+        elif option == 1:
+            self.trend_status = not self.trend_status
+        elif option == 2:
+            self.points_status = not self.points_status
         
-    def preview_lat(self, widget):
-        self.title='Average Latency (ms)'
-        self.active = 'lat'
+        # Refresh chart
+        if not self.init:
+            self.refresh(None,None)
 
-    def preview_rpt(self, widget):
-        self.title='Responses per Second'
-        self.active = 'rpt'
-
-    def preview_err(self, widget):
-        self.title='Error Rate'
-        self.active = 'err'
-
-    def preview_errc(self, widget):
-        self.title='Error Count'
-        self.active = 'errc'
-
-    def preview_vu(self, widget):
-        self.title='Active Threads'
-        self.active = 'vusers'
+    def chart_selector(self,chart_type,stub):
+        # Set chart title and type
+        if chart_type == 0:
+            self.title='Average Response Time (ms)'
+            self.active = 'art'
+        elif chart_type == 1:
+            self.title='Average Latency (ms)'
+            self.active = 'lat'
+        elif chart_type == 2:
+            self.title='Responses per Second'
+            self.active = 'rpt'
+        elif chart_type == 3:
+            self.title='Throughput (kB/s)'
+            self.active = 'bpt'
+        elif chart_type == 4:
+            self.title='Error Rate'
+            self.active = 'err'
+        elif chart_type == 5:
+            self.title='Error Count'
+            self.active = 'errc'
+        elif chart_type == 6:
+            self.title='Active Threads'
+            self.active = 'vusers'
+        
+        # Refresh chart
+        if not self.init:
+            self.refresh(None,None)
 
 class ProgressBar:
     def __init__(self):
@@ -811,7 +838,14 @@ class WarnWindow:
             status)
         md.run()
         md.destroy()
+
+class DTDResolver(etree.Resolver):
+    def resolve(self, url, id, context):
         
+        schema = "<!ELEMENT httpSample EMPTY>"
+        
+        return self.resolve_string(schema, context)
+
 def main():
     PyLan()
     gtk.main()    
