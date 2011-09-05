@@ -64,12 +64,13 @@ class jmlog:
     
     def validate_csv(self,line):
         # Validate CSV file header
-        header = ("timeStamp","elapsed","label","success","bytes","Latency")
-    
+        header = ("timeStamp","elapsed","label","success","bytes","allThreads","Latency")
+        
         for label in header:
             if not line.count(label):
                 self.status = "Invalid CSV header"
                 return False
+                
         self.status = "Valid"
         return True
     
@@ -367,9 +368,10 @@ class jmlog:
         return ma
 
     def export2csv(self,path):
-        
+        # Convert XML log to CSV format
         log_file = open(path,"wb")
-        output = writer(log_file)        
+        output = writer(log_file)
+        
         for row in range(len(self.data)):
             current_row=(
                 self.data[row][self.ts_index],
@@ -377,9 +379,11 @@ class jmlog:
                 self.data[row][self.lbl_index],
                 self.data[row][self.err_index],
                 self.data[row][self.b_index],
+                self.data[row][self.vu_index],
                 self.data[row][self.lt_index]
             )
             output.writerow(current_row)
+        
         log_file.close()
    
     def plot(self, graph = 'bpt_total',time_int = 30, label = None, l_opt = False,ttl=None,trend = False, pnts=False):
