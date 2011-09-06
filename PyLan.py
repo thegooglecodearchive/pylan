@@ -48,11 +48,15 @@ import os
     JMeter Unified Log Class
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 class jmlog:
-    def __init__(self,path):
+    def __init__(self,path,throughput_range,time_range):
         # Read first log line for further validation        
         log_file = open(path,"r")
         first_line = log_file.readline()
         log_file.close()
+        
+        # Options
+        self.throughput_range   = throughput_range
+        self.time_range         = time_range
         
         # Determine file format and perform basic check
         if first_line == '<?xml version="1.0" encoding="UTF-8"?>\n':
@@ -225,7 +229,7 @@ class jmlog:
                 subRow.append(long(httpSample.get("ts")))
                 subRow.append(long(httpSample.get("t")))
                 subRow.append(long(httpSample.get("lt")))
-                subRow.append(long(httpSample.get("by")))
+                subRow.append(long(httpSample.get("by"))/1024)
                 subRow.append(httpSample.get("lb"))
                 subRow.append(httpSample.get("s"))
                 subRow.append(int(httpSample.get("na")))
@@ -326,7 +330,11 @@ class jmlog:
                     if self.data[row][self.err_index] == 'false':
                         points[prev_step] += 1
                 elif mode == 'bpt_total':
-                    points[prev_step] += self.data[row][self.b_index]
+                    try:
+                        if self.data[row][self.type_index]=='sample':
+                            points[prev_step] += self.data[row][self.b_index]
+                    except:
+                        points[prev_step] += self.data[row][self.b_index]
                 elif mode == 'rpt_total':
                     points[prev_step] += 1
                 elif mode == 'vusers':
@@ -398,6 +406,16 @@ class jmlog:
 
         # Extract data points for specified time interval, transaction label and graph type
         points = self.log_agg(time_int, label, graph)
+        
+        # Adjust range
+        throughput_coeff    = 1
+        time_coeff          = 1
+        if self.throughput_range and graph.count('bpt'): 
+            for key,value in points.items():
+                points[key] = points[key] / 1024.0
+        if self.time_range  and (graph.count('lat') or graph.count('art')):
+            for key,value in points.items():
+                points[key] = points[key] / 1000.0
 
         # Set graph label
         if graph == 'bpt_total'     : label = 'Total Throughput'
@@ -461,8 +479,7 @@ class jmlog:
         # Check whether 'Legend' is set and customize graph
         if l_opt:
             legend(bbox_to_anchor=(0, -0.2),loc=2,ncol=1)
-
-
+        
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     Main Class
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -486,6 +503,8 @@ class PyLan:
         
         # Init options
         self.init   = 1
+        self.throughput_range   = False
+        self.time_range         = False
         self.title  = 'Average Response Time (ms)'
         self.active = 'art'
         self.preview()
@@ -511,6 +530,11 @@ class PyLan:
             ( "/Options/Show Legend",           None,   self.option_selector,   0,  "<CheckItem>" ),
             ( "/Options/Show Trends",           None,   self.option_selector,   1,  "<CheckItem>" ),
             ( "/Options/Show Points",           None,   self.option_selector,   2,  "<CheckItem>" ),
+            ( "/Options/sep1",                  None,   None,                   0,  "<Separator>" ),
+            ( "/Options/Throughput/kB\/s",      None,   self.range_selector,    0,  "<RadioItem>" ),
+            ( "/Options/Throughput/MB\/s",      None,   self.range_selector,    1,  "/Options/Throughput/kB\/s" ),
+            ( "/Options/Time/Milliseconds",     None,   self.range_selector,    2,  "<RadioItem>" ),
+            ( "/Options/Time/Seconds",          None,   self.range_selector,    3,  "/Options/Time/Milliseconds" ),
         )
         
         accel_group = gtk.AccelGroup()
@@ -557,7 +581,7 @@ class PyLan:
                 
         if response == gtk.RESPONSE_OK:   
             # Reads log
-            self.log = jmlog(self.filename)
+            self.log = jmlog(self.filename,self.throughput_range,self.time_range)
             
             # Import validation
             if self.log.status == "Valid":
@@ -822,24 +846,56 @@ class PyLan:
             self.trend_status = not self.trend_status
         elif option == 2:
             self.points_status = not self.points_status
-        
-        # Refresh chart
+            
+    def range_selector(self,option,stub):
+        # Throughput
+        if option == 0:
+            self.throughput_range = False
+            if self.title.count("Throughput"):
+                self.title='Throughput (kB/s)'
+        if option == 1:
+            self.throughput_range = True
+            if self.title.count("Throughput"):
+                self.title='Throughput (MB/s)'
+        # Time
+        elif option == 2:
+            self.time_range = False
+            if self.title.count("Response Time"):
+                self.title='Average Response Time (ms)'
+            elif self.title.count("Latency"):
+                self.title='Average Latency (ms)'
+        elif option == 3:
+            self.time_range = True
+            if self.title.count("Response Time"):
+                self.title='Average Response Time (s)'
+            elif self.title.count("Latency"):
+                self.title='Average Latency (s)'
         if not self.init:
-            self.refresh(None,None)
+            self.log.throughput_range   = self.throughput_range
+            self.log.time_range         = self.time_range
 
     def chart_selector(self,chart_type,stub):
         # Set chart title and type
         if chart_type == 0:
-            self.title='Average Response Time (ms)'
+            if not self.time_range:
+                self.title='Average Response Time (ms)'
+            else:
+                self.title='Average Response Time (s)'
             self.active = 'art'
         elif chart_type == 1:
-            self.title='Average Latency (ms)'
+            if not self.time_range:
+                self.title='Average Latency (ms)'
+            else:
+                self.title='Average Latency (s)'
             self.active = 'lat'
         elif chart_type == 2:
             self.title='Responses per Second'
             self.active = 'rpt'
         elif chart_type == 3:
-            self.title='Throughput (kB/s)'
+            if not self.throughput_range:
+                self.title='Throughput (kB/s)'
+            else:
+                self.title='Throughput (MB/s)'
             self.active = 'bpt'
         elif chart_type == 4:
             self.title='Error Rate'
@@ -851,10 +907,6 @@ class PyLan:
             self.title='Active Threads'
             self.active = 'vusers'
         
-        # Refresh chart
-        if not self.init:
-            self.refresh(None,None)
-
 class ProgressBar:
     def __init__(self):
         # Create the ProgressBar
