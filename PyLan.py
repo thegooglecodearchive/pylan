@@ -30,19 +30,19 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
 
-from pylab import *
-import pygtk, gtk, gobject
-pygtk.require('2.0')
-rcParams['font.size'] = 8
+import gtk
 
 from numpy import arange
 from matplotlib.dates import MinuteLocator, DateFormatter
+import pylab
 
 from csv import reader, writer
 from lxml import etree
 
 from datetime import datetime
 import os
+
+pylab.rcParams['font.size'] = 8
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     JMeter Log Class
@@ -396,12 +396,12 @@ class jmlog:
     def plot(self, graph = 'bpt_total',time_int = 30, label = None, l_opt = False,ttl=None,trend = False, pnts=False):
         # Check whether 'Legend' is set and customize plot mode
         if l_opt:
-            ax=subplot(2,1,1)
+            ax = pylab.subplot(2,1,1)
         else:
-            ax=subplot(1,1,1)
+            ax = pylab.subplot(1,1,1)
         
         # Set graph title
-        title(ttl)
+        pylab.title(ttl)
 
         # Extract data points for specified time interval, transaction label and graph type
         points = self.log_agg(time_int, label, graph)
@@ -423,8 +423,8 @@ class jmlog:
         elif graph == 'errc_total'  : label = 'Total Error Count'
 
         # Initializes data points arrays
-        x=list()
-        y=list()
+        x = list()
+        y = list()
         
         for key in sorted(points.keys()):
             # Defines time value (X axis)
@@ -439,16 +439,16 @@ class jmlog:
 
         # Check whether 'Points' is set and customize graph
         if pnts:            
-            plot(x,y,linestyle='solid',marker='.',markersize=5,label = label, linewidth=0.5)
+            pylab.plot(x,y,linestyle='solid',marker='.',markersize=5,label = label, linewidth=0.5)
         else:            
-            plot(x,y,label = label, linewidth=0.5)
+            pylab.plot(x,y,label = label, linewidth=0.5)
 
         # Check whether 'Trend' is set and customize graph
         if trend:
-            plot(x,self.trend(y),label = label+' (Trend)', linewidth=1)
+            pylab.plot(x,self.trend(y),label = label+' (Trend)', linewidth=1)
 
         # Activate grid mode
-        grid(True)
+        pylab.grid(True)
 
         # Evaluate time markers
         max_min = self.end/60
@@ -466,19 +466,19 @@ class jmlog:
             time_int = 60
 
         if time_int<=60:
-            xlabel('Elapsed time (hh:mm)')
+            pylab.xlabel('Elapsed time (hh:mm)')
             ax.xaxis.set_major_locator( MinuteLocator(arange(0,max_min,time_int)))
             ax.xaxis.set_minor_locator( MinuteLocator(arange(0,max_min,time_int/5)))
             ax.xaxis.set_major_formatter( DateFormatter('%H:%M') )
         else:
-            xlabel('Elapsed time (dd;hh:mm)')
-            labels = ax.get_xticklabels()
+            pylab.xlabel('Elapsed time (dd;hh:mm)')
+            labels = pylab.ax.get_xticklabels()
             ax.xaxis.set_major_formatter( DateFormatter('%d;%H:%M') )
-            setp(labels, rotation=0, fontsize=8)
+            pylab.setp(labels, rotation=0, fontsize=8)
 
         # Check whether 'Legend' is set and customize graph
         if l_opt:
-            legend(bbox_to_anchor=(0, -0.2),loc=2,ncol=1)
+            pylab.legend(bbox_to_anchor=(0, -0.2),loc=2,ncol=1)
         
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     GUI
@@ -706,7 +706,7 @@ class PyLan:
                 self.log.start = max(0,int(self.log.end)-300)
             
             if time_int:
-                clf()
+                pylab.clf()
                 if self.active == 'vusers':
                     self.log.plot(self.active, time_int, None, False,self.title,False,False)
                 else:
@@ -714,7 +714,7 @@ class PyLan:
                         self.log.plot(self.active, time_int, label, self.legend_status,self.title,self.trend_status,self.points_status)
                     if self.total_status and self.active != 'art' and self.active != 'lat':
                         self.log.plot(self.active+'_total', time_int, None, self.legend_status, self.title,self.trend_status,self.points_status)
-                savefig("preview.png",dpi=96, transparent=False,format="png")
+                pylab.savefig("preview.png",dpi=96, transparent=False,format="png")
                 
                 try:
                     self.table.remove(self.button)
