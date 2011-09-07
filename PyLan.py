@@ -503,10 +503,16 @@ class PyLan:
         
         # Initial options
         self.init   = 1
+        
         self.throughput_range   = False
         self.time_range         = False
+        self.legend_status      = False
+        self.trend_status       = False
+        self.points_status      = False
+        
         self.title  = 'Average Response Time (ms)'
         self.active = 'art'
+        
         self.preview()
         
     def get_main_menu(self, window):
@@ -778,9 +784,6 @@ class PyLan:
         # Initial data
         self.label_list     = list()
         self.total_status   = False
-        self.legend_status  = False
-        self.trend_status   = False
-        self.points_status  = False
         
         # Window object
         scrolled_window = gtk.ScrolledWindow()
