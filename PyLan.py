@@ -45,20 +45,20 @@ from datetime import datetime
 import os
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    JMeter Unified Log Class
+    JMeter Log Class
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 class jmlog:
     def __init__(self,path,throughput_range,time_range):
-        # Read first log line for further validation        
+        # Options: Throughput (kB/s vs. MB/s) and Time (ms vs. s)
+        self.throughput_range   = throughput_range
+        self.time_range         = time_range
+        
+        # Read the first log line for further validation        
         log_file = open(path,"r")
         first_line = log_file.readline()
         log_file.close()
         
-        # Options
-        self.throughput_range   = throughput_range
-        self.time_range         = time_range
-        
-        # Determine file format and perform basic check
+        # Guess file format and perform basic check
         if first_line == '<?xml version="1.0" encoding="UTF-8"?>\n':
             if self.validate_xml(path): self.read_xml()
             else: return None
@@ -85,11 +85,9 @@ class jmlog:
         # Initialize container and read data from log
         self.data=list()
         self.data.extend(reader(log_file))
-        
-        # Close CSV log file
         log_file.close()
 
-        # Appen additional column to data array - Seconds from start
+        # Append additional column to data array - Seconds from start
         self.data[0].append("secFromStart")
         
         # Obtain indexes for each column
@@ -102,40 +100,40 @@ class jmlog:
         self.err_index  =   self.index("success")
         self.vu_index   =   self.index("allThreads")
         
-        # Sample labels
-        self.labels = list()
+        # New arrays for sample and transaction labels
+        self.labels         = list()
+        self.transactions   = list()
 
-        # Transaction labels
-        self.transactions = list()
-
-        # Time Variables: fixed and view frame values
-        start_time = long(self.data[1][self.ts_index])
+        # Time borders
+        start_time      = long(self.data[1][self.ts_index])
+        self.start      = 0
         self.start_time = 0
-        self.start = 0
-        self.end_time = 0
+        self.end_time   = 0
         
+        # Parse data array
         for row in range(1,len(self.data)):
             # Calculate additional column value - Seconds from start
             current_time = long(self.data[row][self.ts_index])
             self.data[row].append(int((current_time-start_time)/1000))
             # Transform string values to integer type
-            self.data[row][self.et_index]=int(self.data[row][self.et_index])
-            self.data[row][self.lt_index]=int(self.data[row][self.lt_index])
-            self.data[row][self.b_index]=int(self.data[row][self.b_index])/1024
+            self.data[row][self.et_index]   = int(self.data[row][self.et_index])
+            self.data[row][self.lt_index]   = int(self.data[row][self.lt_index])
+            self.data[row][self.b_index]    = int(self.data[row][self.b_index])/1024
             try:
-                self.data[row][self.vu_index]=int(self.data[row][self.vu_index])
+                self.data[row][self.vu_index] = int(self.data[row][self.vu_index])
             except:
                 None
             # Update end time
             if self.end_time < self.data[row][-1]:
                 self.end_time = self.data[row][-1]
-            # Update label list
+            # Update list of labels
             if not self.data[row][self.lbl_index] in self.labels:
                 self.labels.append(self.data[row][self.lbl_index])
-        self.end = self.end_time    
+        # Time borders
+        self.end = self.end_time
         
     def validate_xml(self,path):
-        # Parse log file
+        # Basic XML parsing
         try:
             self.tree = etree.parse(path)
         except etree.XMLSyntaxError as e:
@@ -196,9 +194,10 @@ class jmlog:
             "allThreads","secFromStart",
             "type"))       
         
-        # Temp var
+        # Time borders
         start_time = 0        
         
+        # Parse data array
         for sample in self.tree.findall("sample"):
             # Transcation level
             row = list()    
@@ -218,8 +217,7 @@ class jmlog:
             row.append(int((row[0]-start_time)/1000))
             row.append("sample")
     
-            # HTTP sample level
-            # Aggregative metrics
+            # HTTP sample level            
             elapsedTime=0
             latency=0
     
@@ -261,17 +259,16 @@ class jmlog:
         self.vu_index   =   self.index("allThreads")
         self.type_index =   self.index("type")
 
-        # Sample labels
-        self.labels = list()
-
-        # Transaction labels
-        self.transactions = list()
+        # New arrays for sample and transaction labels
+        self.labels         = list()
+        self.transactions   = list()
         
-        # Time Variables: fixed and view frame values
+        # Time borders
         self.start_time = 0
-        self.start = 0
-        self.end_time = 0
+        self.start      = 0
+        self.end_time   = 0
         
+        # What is this block for?
         for row in range(1,len(self.data)):
             if self.end_time < self.data[row][self.sec_index]:
                 self.end_time = self.data[row][self.sec_index]
@@ -281,7 +278,8 @@ class jmlog:
             else:
                 if not self.data[row][self.lbl_index] in self.transactions:
                     self.transactions.append(self.data[row][self.lbl_index])
-               
+        
+        # Time borders
         self.end = self.end_time
             
     def index(self,column):
@@ -295,8 +293,9 @@ class jmlog:
         # for specified transaction label and time interval 
         prev_step = self.start
         next_step = prev_step+time_int
+        
         points = dict()
-        points[prev_step]=0
+        points[prev_step] =0
 
         # Poor algorithm for start time calculation - to fix!!!
         for i in range(1,len(self.data)):
@@ -304,7 +303,7 @@ class jmlog:
                 row = i
                 break
 
-        # Data points calculation
+        # Calculation of data points
         count = 0
         while prev_step < self.end and row < len(self.data):
             # Check whether timestamp in current interval
@@ -423,18 +422,19 @@ class jmlog:
         elif graph == 'err_total'   : label = 'Total Error Rate'
         elif graph == 'errc_total'  : label = 'Total Error Count'
 
-        # Initialize data points arrays
+        # Initializes data points arrays
         x=list()
         y=list()
+        
         for key in sorted(points.keys()):
-            # Define time value (X axis)
+            # Defines time value (X axis)
             days = key/86400
             hours = (key-86400*days)/3600
             minutes = (key - 86400*days-3600*hours)/60
             seconds = key - 86400*days-3600*hours-60*minutes
             days+=1
             x.append(datetime(1970, 1, days, hours, minutes, seconds))
-            # Define time value (Y axis)
+            # Defines time value (Y axis)
             y.append(points[key])
 
         # Check whether 'Points' is set and customize graph
@@ -481,7 +481,7 @@ class jmlog:
             legend(bbox_to_anchor=(0, -0.2),loc=2,ncol=1)
         
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    Main Class
+    GUI
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 class PyLan:    
     def destroy(self, widget):
@@ -501,7 +501,7 @@ class PyLan:
         self.window.vbox.pack_start(self.menubar, True, True, 0)
         self.menubar.show()
         
-        # Init options
+        # Initial options
         self.init   = 1
         self.throughput_range   = False
         self.time_range         = False
@@ -537,31 +537,34 @@ class PyLan:
             ( "/Options/Time/Seconds",          None,   self.range_selector,    3,  "/Options/Time/Milliseconds" ),
         )
         
+        # Accelerator group
         accel_group = gtk.AccelGroup()
 
         # This function initializes the item factory.
         item_factory = gtk.ItemFactory(gtk.MenuBar, "<main>", accel_group)
 
         # This method generates the menu items. Pass to the item factory
-        #  the list of menu items
+        # the list of menu items
         item_factory.create_items(self.menu_items)
 
         # Attach the new accelerator group to the window.
         window.add_accel_group(accel_group)
 
-        # need to keep a reference to item_factory to prevent its destruction
+        # Need to keep a reference to item_factory to prevent its destruction
         self.item_factory = item_factory
         # Finally, return the actual menu bar created by the item factory.
         return item_factory.get_widget("<main>")
     
     def open_log(self,stub1,stub2):
+        # Open file dialog
         dialog = gtk.FileChooserDialog("Open JMeter Log File",
                                None,
                                gtk.FILE_CHOOSER_ACTION_OPEN,
                                (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
                                 gtk.STOCK_OPEN, gtk.RESPONSE_OK))
         dialog.set_default_response(gtk.RESPONSE_OK)
-
+        
+        # File filter
         filter = gtk.FileFilter()
         filter.set_name("JMeter Logs")
         filter.add_pattern("*.jtl")
@@ -574,16 +577,18 @@ class PyLan:
         filter.set_name("All files")
         filter.add_pattern("*")
         dialog.add_filter(filter)
-
+        
+        # Read file name
         response = dialog.run()
         self.filename = dialog.get_filename()
         dialog.destroy()
-                
+        
+        # Process response
         if response == gtk.RESPONSE_OK:   
-            # Reads log
+            # Read log
             self.log = jmlog(self.filename,self.throughput_range,self.time_range)
             
-            # Import validation
+            # Actions based on validation status
             if self.log.status == "Valid":
                 self.window.set_title("PyLan - " + self.filename)
                 self.window.vbox.remove(self.table)
@@ -768,21 +773,27 @@ class PyLan:
             dialog.destroy()
 
     def label_win(self):
-        self.label_list = list()
-        self.total_status = False
-        self.legend_status = False
-        self.trend_status = False
-        self.points_status = False
+        # Sub-window with list of labels and transactions
         
+        # Initial data
+        self.label_list     = list()
+        self.total_status   = False
+        self.legend_status  = False
+        self.trend_status   = False
+        self.points_status  = False
+        
+        # Window object
         scrolled_window = gtk.ScrolledWindow()
         scrolled_window.set_border_width(0)
         scrolled_window.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         scrolled_window.show()
-      
+        
+        # Container
         table = gtk.Table(30, 3, True)
         table.show()
         scrolled_window.add_with_viewport(table)
 
+        # Populate container
         if not self.init:
             row = 1
 
@@ -821,25 +832,29 @@ class PyLan:
         return scrolled_window
 
     def time_scale(self, scale = 60):
-            Hscale = gtk.HScale(gtk.Adjustment(0, 0, scale, 1, 1, 1))
-            Hscale.set_update_policy(gtk.UPDATE_CONTINUOUS)
-            Hscale.set_digits(0)
-            Hscale.set_value_pos(gtk.POS_LEFT)
-            Hscale.set_draw_value(True)
-            Hscale.show()
-            return Hscale
+        # Unknown method
+        Hscale = gtk.HScale(gtk.Adjustment(0, 0, scale, 1, 1, 1))
+        Hscale.set_update_policy(gtk.UPDATE_CONTINUOUS)
+        Hscale.set_digits(0)
+        Hscale.set_value_pos(gtk.POS_LEFT)
+        Hscale.set_draw_value(True)
+        Hscale.show()
+        
+        return Hscale
 
     def label_options(self, widget, label = None):
+        # Callback for checkboxes
         if widget.get_active():
             self.label_list.append(label)
         else:
             self.label_list.remove(label)
     
     def total(self,widget):
+        # Callback for checkbox
         self.total_status = not self.total_status
 
     def option_selector(self,option,stub):
-        # Update settings
+        # Update settings/options
         if option == 0:
             self.legend_status = not self.legend_status
         elif option == 1:
@@ -908,6 +923,7 @@ class PyLan:
             self.active = 'vusers'
         
 class ProgressBar:
+    # Obsolete class
     def __init__(self):
         # Create the ProgressBar
         self.progress = gtk.Window(gtk.WINDOW_POPUP)
@@ -920,6 +936,7 @@ class ProgressBar:
         self.progress.add(self.bar)        
 
 class WarnWindow:
+    # Warnings
     def __init__(self, status):
         md = gtk.MessageDialog(None, 
             gtk.DIALOG_DESTROY_WITH_PARENT,gtk.MESSAGE_WARNING, gtk.BUTTONS_CLOSE,
