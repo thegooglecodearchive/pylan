@@ -510,6 +510,8 @@ class PyLan:
         self.trend_status       = False
         self.points_status      = False
         
+        self.dpi    = 96
+        
         self.title  = 'Average Response Time (ms)'
         self.active = 'art'
         
@@ -541,6 +543,9 @@ class PyLan:
             ( "/Options/Throughput/MB\/s",      None,           self.range_selector,    1,  "/Options/Throughput/kB\/s" ),
             ( "/Options/Time/Milliseconds",     None,           self.range_selector,    2,  "<RadioItem>" ),
             ( "/Options/Time/Seconds",          None,           self.range_selector,    3,  "/Options/Time/Milliseconds" ),
+            ( "/Options/Resolution/96 dpi",     None,           self.dpi_selector,      96, "<RadioItem>" ),
+            ( "/Options/Resolution/72 dpi",     None,           self.dpi_selector,      72, "/Options/Resolution/96 dpi" ),            
+            ( "/Options/Resolution/120 dpi",    None,           self.dpi_selector,      120,"/Options/Resolution/96 dpi" ),
         )
         
         # Accelerator group
@@ -714,7 +719,7 @@ class PyLan:
                         self.log.plot(self.active, time_int, label, self.legend_status,self.title,self.trend_status,self.points_status)
                     if self.total_status and self.active != 'art' and self.active != 'lat':
                         self.log.plot(self.active+'_total', time_int, None, self.legend_status, self.title,self.trend_status,self.points_status)
-                pylab.savefig("preview.png",dpi=96, transparent=False,format="png")
+                pylab.savefig("preview.png", dpi = self.dpi, transparent = False, format = "png")
                 
                 try:
                     self.table.remove(self.button)
@@ -754,7 +759,7 @@ class PyLan:
                     filename = dialog.get_filename()+'.png'
                 else:
                     filename = dialog.get_filename()
-                savefig(filename,dpi=96, transparent=False,format="png")
+                savefig(filename, dpi=self.dpi, transparent=False, format="png")
             dialog.destroy()
 
     def save_log(self,stub1,stub2):
@@ -891,6 +896,10 @@ class PyLan:
         if not self.init:
             self.log.throughput_range   = self.throughput_range
             self.log.time_range         = self.time_range
+            
+    def dpi_selector(self,option,stub):
+        # Update DPI settings
+        self.dpi = option
 
     def chart_selector(self,chart_type,stub):
         # Set chart title and type
