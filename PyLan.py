@@ -42,8 +42,6 @@ from lxml import etree
 from datetime import datetime
 import os
 
-pylab.rcParams['font.size'] = 8
-
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
     JMeter Log Class
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -510,6 +508,8 @@ class PyLan:
         self.trend_status       = False
         self.points_status      = False
         
+        pylab.rcParams['font.size'] = 8
+        
         self.dpi    = 96
         
         self.title  = 'Average Response Time (ms)'
@@ -546,6 +546,9 @@ class PyLan:
             ( "/Options/Resolution/96 dpi",     None,           self.dpi_selector,      96, "<RadioItem>" ),
             ( "/Options/Resolution/72 dpi",     None,           self.dpi_selector,      72, "/Options/Resolution/96 dpi" ),            
             ( "/Options/Resolution/120 dpi",    None,           self.dpi_selector,      120,"/Options/Resolution/96 dpi" ),
+            ( "/Options/Font Size/8 pt",        None,           self.font_selector,     8,  "<RadioItem>" ),
+            ( "/Options/Font Size/10 pt",       None,           self.font_selector,     10, "/Options/Font Size/8 pt" ),            
+            ( "/Options/Font Size/12 pt",       None,           self.font_selector,     12, "/Options/Font Size/8 pt" ),
         )
         
         # Accelerator group
@@ -759,7 +762,7 @@ class PyLan:
                     filename = dialog.get_filename()+'.png'
                 else:
                     filename = dialog.get_filename()
-                savefig(filename, dpi=self.dpi, transparent=False, format="png")
+                pylab.savefig(filename, dpi=self.dpi, transparent=False, format="png")
             dialog.destroy()
 
     def save_log(self,stub1,stub2):
@@ -900,6 +903,10 @@ class PyLan:
     def dpi_selector(self,option,stub):
         # Update DPI settings
         self.dpi = option
+        
+    def font_selector(self,option,stub):
+        # Update Font settings
+        pylab.rcParams['font.size'] = option
 
     def chart_selector(self,chart_type,stub):
         # Set chart title and type
