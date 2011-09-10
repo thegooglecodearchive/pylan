@@ -782,7 +782,10 @@ class PyLan:
             dialog.add_filter(filter)
             response = dialog.run()
             if response == gtk.RESPONSE_OK:
-                filename = dialog.get_filename()
+                if dialog.get_filename()[-4:] != '.png':
+                    filename = dialog.get_filename()+'.jtl'
+                else:
+                    filename = dialog.get_filename()
                 self.log.export2csv(filename)
             dialog.destroy()
 
